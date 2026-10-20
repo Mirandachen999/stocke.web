@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>左右圖片格</title>
+<style>
+:root{--bg:#eef1ee;--card:#fbfcfb;--tx:#1d2a26;--mu:#5d6b66;--bd:#9fb0a8;--ac:#1f6f5c;--ac-tx:#fff;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141b19;--card:#1e2825;--tx:#e6efeb;--mu:#98a9a2;--bd:#4b5d56;--ac:#5cc4a8;--ac-tx:#0c1f19}}
+:root[data-theme="dark"]{--bg:#141b19;--card:#1e2825;--tx:#e6efeb;--mu:#98a9a2;--bd:#4b5d56;--ac:#5cc4a8;--ac-tx:#0c1f19}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--tx);font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif}
+main{max-width:640px;margin:0 auto;padding:20px 16px 28px}
+h1{font-size:22px;font-weight:600;margin:0 0 4px}
+.sub{font-size:14px;color:var(--mu);margin:0 0 18px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.slot{display:flex;flex-direction:column;gap:8px}
+.name{font-size:14px;font-weight:600}
+.drop{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;aspect-ratio:3/4;border:2px dashed var(--bd);border-radius:14px;background:var(--card);color:var(--mu);font-size:14px;cursor:pointer;overflow:hidden;-webkit-tap-highlight-color:transparent}
+.drop:focus-within{outline:3px solid var(--ac);outline-offset:2px}
+.drop.has{border:1px solid var(--bd)}
+.drop svg{width:32px;height:32px}
+.drop img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.drop input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+button{font:inherit;font-size:14px;min-height:44px;border:1px solid var(--bd);border-radius:10px;background:transparent;color:var(--tx)}
+button:disabled{opacity:.4}
+button:focus-visible{outline:3px solid var(--ac);outline-offset:2px}
+.note{font-size:13px;color:var(--mu);margin:16px 0 0}
+</style>
+</head>
+<body>
+<main>
+<h1>左右圖片格</h1>
+<p class="sub">點格子選照片，左右各放一張。</p>
+<div class="grid">
+<div class="slot" data-key="left">
+<span class="name">左邊</span>
+<label class="drop"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4m0 0L7 9m5-5 5 5M5 20h14"/></svg><span>上傳圖片</span><input type="file" accept="image/*" aria-label="上傳左邊圖片"></label>
+<button type="button" disabled>清除左邊</button>
+</div>
+<div class="slot" data-key="right">
+<span class="name">右邊</span>
+<label class="drop"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4m0 0L7 9m5-5 5 5M5 20h14"/></svg><span>上傳圖片</span><input type="file" accept="image/*" aria-label="上傳右邊圖片"></label>
+<button type="button" disabled>清除右邊</button>
+</div>
+</div>
+<p class="note" id="note">圖片只存在這支手機的瀏覽器裡，不會上傳到網路。</p>
+</main>
+<script>
+(function(){
+var db=null;
+function openDb(){
+  return new Promise(function(res){
+    try{
+      var r=indexedDB.open("twobox",1);
+      r.onupgradeneeded=function(){r.result.createObjectStore("img")};
+      r.onsuccess=function(){res(r.result)};
+      r.onerror=function(){res(null)};
+    }catch(e){res(null)}
+  });
+}
+function dbGet(k){
+  return new Promise(function(res){
+    if(!db)return res(null);
+    try{var q=db.transaction("img").objectStore("img").get(k);q.onsuccess=function(){res(q.result||null)};q.onerror=function(){res(null)}}catch(e){res(null)}
+  });
+}
+function dbPut(k,v){
+  return new Promise(function(res){
+    if(!db)return res(false);
+    try{var t=db.transaction("img","readwrite");t.objectStore("img").put(v,k);t.oncomplete=function(){res(true)};t.onerror=function(){res(false)}}catch(e){res(false)}
+  });
+}
+function dbDel(k){
+  return new Promise(function(res){
+    if(!db)return res();
+    try{var t=db.transaction("img","readwrite");t.objectStore("img").delete(k);t.oncomplete=function(){res()};t.onerror=function(){res()}}catch(e){res()}
+  });
+}
+function Slot(el){
+  var key=el.dataset.key,drop=el.querySelector(".drop"),input=el.querySelector("input"),btn=el.querySelector("button"),url=null;
+  var empty=drop.innerHTML;
+  function show(blob){
+    if(url)URL.revokeObjectURL(url);
+    url=URL.createObjectURL(blob);
+    var img=drop.querySelector("img");
+    if(!img){img=document.createElement("img");img.alt="已上傳的圖片";drop.insertBefore(img,drop.firstChild)}
+    img.src=url;
+    drop.classList.add("has");
+    drop.querySelectorAll("svg,span").forEach(function(n){n.style.display="none"});
+    btn.disabled=false;
+  }
+  function reset(){
+    if(url){URL.revokeObjectURL(url);url=null}
+    var img=drop.querySelector("img");
+    if(img)img.remove();
+    drop.classList.remove("has");
+    drop.querySelectorAll("svg,span").forEach(function(n){n.style.display=""});
+    input.value="";
+    btn.disabled=true;
+  }
+  input.addEventListener("change",function(){
+    var f=input.files&&input.files[0];
+    if(!f)return;
+    show(f);
+    dbPut(key,f).then(function(ok){
+      if(!ok)document.getElementById("note").textContent="這個瀏覽器無法儲存圖片，重新整理後圖片會消失。";
+    });
+  });
+  btn.addEventListener("click",function(){reset();dbDel(key)});
+  dbGet(key).then(function(b){if(b)show(b)});
+}
+openDb().then(function(d){
+  db=d;
+  document.querySelectorAll(".slot").forEach(Slot);
+});
+})();
+</script>
+</body>
+</html>
